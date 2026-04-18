@@ -1,0 +1,352 @@
+[
+  {
+    "email": "user1@itm.ac.in",
+    "name": "Aarav Sharma",
+    "password": "$2a$10$examplehash1",
+    "branch": "ME",
+    "whatsapp": "9518286009"
+  },
+  {
+    "email": "user2@itm.ac.in",
+    "name": "Vihaan Gupta",
+    "password": "$2a$10$examplehash2",
+    "branch": "ECE",
+    "whatsapp": "9533519143"
+  },
+  {
+    "email": "user3@itm.ac.in",
+    "name": "Arjun Verma",
+    "password": "$2a$10$examplehash3",
+    "branch": "ME",
+    "whatsapp": "9168429812"
+  },
+  {
+    "email": "user4@itm.ac.in",
+    "name": "Reyansh Singh",
+    "password": "$2a$10$examplehash4",
+    "branch": "CSE",
+    "whatsapp": "9412080419"
+  },
+  {
+    "email": "user5@itm.ac.in",
+    "name": "Ayaan Patel",
+    "password": "$2a$10$examplehash5",
+    "branch": "IT",
+    "whatsapp": "9839174678"
+  },
+  {
+    "email": "user6@itm.ac.in",
+    "name": "Ishaan Kumar",
+    "password": "$2a$10$examplehash6",
+    "branch": "ECE",
+    "whatsapp": "9502358270"
+  },
+  {
+    "email": "user7@itm.ac.in",
+    "name": "Advik Jain",
+    "password": "$2a$10$examplehash7",
+    "branch": "IT",
+    "whatsapp": "9202238696"
+  },
+  {
+    "email": "user8@itm.ac.in",
+    "name": "Ananya Mishra",
+    "password": "$2a$10$examplehash8",
+    "branch": "ME",
+    "whatsapp": "9158978498"
+  },
+  {
+    "email": "user9@itm.ac.in",
+    "name": "Diya Choudhary",
+    "password": "$2a$10$examplehash9",
+    "branch": "ME",
+    "whatsapp": "9320852729"
+  },
+  {
+    "email": "user10@itm.ac.in",
+    "name": "Saanvi Rao",
+    "password": "$2a$10$examplehash10",
+    "branch": "CSE",
+    "whatsapp": "9153174167"
+  },
+  {
+    "email": "user11@itm.ac.in",
+    "name": "Aryan Khanna",
+    "password": "$2a$10$examplehash11",
+    "branch": "ECE",
+    "whatsapp": "9866363195"
+  },
+  {
+    "email": "user12@itm.ac.in",
+    "name": "Kabir Malhotra",
+    "password": "$2a$10$examplehash12",
+    "branch": "CSE",
+    "whatsapp": "9490185848"
+  },
+  {
+    "email": "user13@itm.ac.in",
+    "name": "Riya Kapoor",
+    "password": "$2a$10$examplehash13",
+    "branch": "CSE",
+    "whatsapp": "9641030096"
+  },
+  {
+    "email": "user14@itm.ac.in",
+    "name": "Arnav Saxena",
+    "password": "$2a$10$examplehash14",
+    "branch": "ECE",
+    "whatsapp": "9897651213"
+  },
+  {
+    "email": "user15@itm.ac.in",
+    "name": "Myra Bansal",
+    "password": "$2a$10$examplehash15",
+    "branch": "CSE",
+    "whatsapp": "9972260705"
+  },
+  {
+    "email": "user16@itm.ac.in",
+    "name": "Devansh Joshi",
+    "password": "$2a$10$examplehash16",
+    "branch": "IT",
+    "whatsapp": "9996887023"
+  },
+  {
+    "email": "user17@itm.ac.in",
+    "name": "Anika Agarwal",
+    "password": "$2a$10$examplehash17",
+    "branch": "IT",
+    "whatsapp": "9424183632"
+  },
+  {
+    "email": "user18@itm.ac.in",
+    "name": "Rudra Pandey",
+    "password": "$2a$10$examplehash18",
+    "branch": "CE",
+    "whatsapp": "9702204550"
+  },
+  {
+    "email": "user19@itm.ac.in",
+    "name": "Pari Mehta",
+    "password": "$2a$10$examplehash19",
+    "branch": "IT",
+    "whatsapp": "9753454754"
+  },
+  {
+    "email": "user20@itm.ac.in",
+    "name": "Veer Chauhan",
+    "password": "$2a$10$examplehash20",
+    "branch": "IT",
+    "whatsapp": "9859495772"
+  },
+  {
+    "email": "user21@itm.ac.in",
+    "name": "Zara Khan",
+    "password": "$2a$10$examplehash21",
+    "branch": "IT",
+    "whatsapp": "9104780989"
+  },
+  {
+    "email": "user22@itm.ac.in",
+    "name": "Aryan Gill",
+    "password": "$2a$10$examplehash22",
+    "branch": "IT",
+    "whatsapp": "9401007115"
+  },
+  {
+    "email": "user23@itm.ac.in",
+    "name": "Sara Ahmed",
+    "password": "$2a$10$examplehash23",
+    "branch": "IT",
+    "whatsapp": "9548656299"
+  },
+  {
+    "email": "user24@itm.ac.in",
+    "name": "Rohan Bhatia",
+    "password": "$2a$10$examplehash24",
+    "branch": "ECE",
+    "whatsapp": "9387080188"
+  },
+  {
+    "email": "user25@itm.ac.in",
+    "name": "Nisha Sharma",
+    "password": "$2a$10$examplehash25",
+    "branch": "ME",
+    "whatsapp": "9113581936"
+  },
+  {
+    "email": "user26@itm.ac.in",
+    "name": "Karan Singh",
+    "password": "$2a$10$examplehash26",
+    "branch": "ME",
+    "whatsapp": "9319028078"
+  },
+  {
+    "email": "user27@itm.ac.in",
+    "name": "Priya Gupta",
+    "password": "$2a$10$examplehash27",
+    "branch": "CSE",
+    "whatsapp": "9260612726"
+  },
+  {
+    "email": "user28@itm.ac.in",
+    "name": "Rahul Verma",
+    "password": "$2a$10$examplehash28",
+    "branch": "CE",
+    "whatsapp": "9608300933"
+  },
+  {
+    "email": "user29@itm.ac.in",
+    "name": "Sneha Patel",
+    "password": "$2a$10$examplehash29",
+    "branch": "CSE",
+    "whatsapp": "9282149639"
+  },
+  {
+    "email": "user30@itm.ac.in",
+    "name": "Amit Kumar",
+    "password": "$2a$10$examplehash30",
+    "branch": "IT",
+    "whatsapp": "9411103281"
+  },
+  {
+    "email": "user31@itm.ac.in",
+    "name": "Neha Jain",
+    "password": "$2a$10$examplehash31",
+    "branch": "ME",
+    "whatsapp": "9879110590"
+  },
+  {
+    "email": "user32@itm.ac.in",
+    "name": "Vikram Mishra",
+    "password": "$2a$10$examplehash32",
+    "branch": "ECE",
+    "whatsapp": "9716408019"
+  },
+  {
+    "email": "user33@itm.ac.in",
+    "name": "Kavya Choudhary",
+    "password": "$2a$10$examplehash33",
+    "branch": "ME",
+    "whatsapp": "9769967499"
+  },
+  {
+    "email": "user34@itm.ac.in",
+    "name": "Rajat Rao",
+    "password": "$2a$10$examplehash34",
+    "branch": "CSE",
+    "whatsapp": "9662096405"
+  },
+  {
+    "email": "user35@itm.ac.in",
+    "name": "Simran Khanna",
+    "password": "$2a$10$examplehash35",
+    "branch": "CSE",
+    "whatsapp": "9323379593"
+  },
+  {
+    "email": "user36@itm.ac.in",
+    "name": "Yash Malhotra",
+    "password": "$2a$10$examplehash36",
+    "branch": "ME",
+    "whatsapp": "9936069261"
+  },
+  {
+    "email": "user37@itm.ac.in",
+    "name": "Alisha Kapoor",
+    "password": "$2a$10$examplehash37",
+    "branch": "CE",
+    "whatsapp": "9572734170"
+  },
+  {
+    "email": "user38@itm.ac.in",
+    "name": "Tarun Saxena",
+    "password": "$2a$10$examplehash38",
+    "branch": "ECE",
+    "whatsapp": "9185694416"
+  },
+  {
+    "email": "user39@itm.ac.in",
+    "name": "Meera Bansal",
+    "password": "$2a$10$examplehash39",
+    "branch": "CE",
+    "whatsapp": "9127312452"
+  },
+  {
+    "email": "user40@itm.ac.in",
+    "name": "Siddharth Joshi",
+    "password": "$2a$10$examplehash40",
+    "branch": "ECE",
+    "whatsapp": "9264955263"
+  },
+  {
+    "email": "user41@itm.ac.in",
+    "name": "Ritika Agarwal",
+    "password": "$2a$10$examplehash41",
+    "branch": "IT",
+    "whatsapp": "9111304626"
+  },
+  {
+    "email": "user42@itm.ac.in",
+    "name": "Naveen Pandey",
+    "password": "$2a$10$examplehash42",
+    "branch": "CE",
+    "whatsapp": "9362104171"
+  },
+  {
+    "email": "user43@itm.ac.in",
+    "name": "Shreya Mehta",
+    "password": "$2a$10$examplehash43",
+    "branch": "ME",
+    "whatsapp": "9946754692"
+  },
+  {
+    "email": "user44@itm.ac.in",
+    "name": "Arpit Chauhan",
+    "password": "$2a$10$examplehash44",
+    "branch": "CE",
+    "whatsapp": "9221512792"
+  },
+  {
+    "email": "user45@itm.ac.in",
+    "name": "Tanya Khan",
+    "password": "$2a$10$examplehash45",
+    "branch": "CSE",
+    "whatsapp": "9428815365"
+  },
+  {
+    "email": "user46@itm.ac.in",
+    "name": "Mohit Gill",
+    "password": "$2a$10$examplehash46",
+    "branch": "ECE",
+    "whatsapp": "9119242710"
+  },
+  {
+    "email": "user47@itm.ac.in",
+    "name": "Anjali Ahmed",
+    "password": "$2a$10$examplehash47",
+    "branch": "ECE",
+    "whatsapp": "9934858761"
+  },
+  {
+    "email": "user48@itm.ac.in",
+    "name": "Rishi Bhatia",
+    "password": "$2a$10$examplehash48",
+    "branch": "IT",
+    "whatsapp": "9407056011"
+  },
+  {
+    "email": "user49@itm.ac.in",
+    "name": "Poonam Sharma",
+    "password": "$2a$10$examplehash49",
+    "branch": "ME",
+    "whatsapp": "9500679186"
+  },
+  {
+    "email": "user50@itm.ac.in",
+    "name": "Deepak Singh",
+    "password": "$2a$10$examplehash50",
+    "branch": "IT",
+    "whatsapp": "9377749491"
+  }
+]
