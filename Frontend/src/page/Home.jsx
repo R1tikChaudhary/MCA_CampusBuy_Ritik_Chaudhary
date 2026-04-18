@@ -1,132 +1,232 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import io from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
+import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import {
   setProducts,
   setLoading,
   setError,
-  setCurrentPage,
+  setCurrentPage as setAppCurrentPage,
   addProduct,
   updateProduct,
   removeProduct,
-  addNotification,
 } from "../utils/appSlice";
 import HomeHeader from "../Component/HomeHeader";
-import { useAuth, getAuthToken } from "../utils/authUtils";
+import { useAuth, API_BASE_URL } from "../utils/authUtils";
+import socket from "../utils/socket";
 
-// Initialize socket connection
-const socket = io("http://localhost:5000");
+const ITEMS_PER_PAGE = 20;
+const ACTIVITY_KEY = "marketplace_user_activity_v1";
+
+const readActivity = () => {
+  try {
+    const raw = localStorage.getItem(ACTIVITY_KEY);
+    if (!raw) {
+      return { productScores: {}, categoryScores: {} };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      productScores: parsed.productScores || {},
+      categoryScores: parsed.categoryScores || {},
+    };
+  } catch {
+    return { productScores: {}, categoryScores: {} };
+  }
+};
+
+const saveActivity = (activity) => {
+  localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
+};
 
 function Home() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { products } = useSelector((store) => store.app);
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [currentProductImages, setCurrentProductImages] = useState([]);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const { products, loading, error } = useSelector((store) => store.app);
+  const [savedProductIds, setSavedProductIds] = useState([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { isAuthenticated, user, token } = useAuth();
+  const { isAuthenticated, token } = useAuth();
 
-  // Filter states
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [priceSort, setPriceSort] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const categories = [
-    "All",
-    "Electronics",
-    "Furniture",
-    "Books",
-    "Fashion",
-    "Vehicles",
-  ];
+  const categories = ["All", "Electronics", "Furniture", "Books", "Fashion", "Vehicles"];
 
-  
+  const recordProductActivity = (product, type = "view") => {
+    if (!product?._id) return;
 
-  // Filter products based on selected criteria
+    const activity = readActivity();
+    const increment = type === "favorite" ? 3 : 1;
+
+    activity.productScores[product._id] = (activity.productScores[product._id] || 0) + increment;
+
+    if (product.category) {
+      activity.categoryScores[product.category] =
+        (activity.categoryScores[product.category] || 0) + increment;
+    }
+
+    saveActivity(activity);
+  };
+
   const applyFilters = () => {
     let filtered = [...products];
+    const normalizedSearch = searchQuery.trim().toLowerCase();
 
-    // Category filter
-    if (selectedCategory && selectedCategory !== "All") {
-      filtered = filtered.filter(
-        (product) =>
-          product.category?.toLowerCase() === selectedCategory.toLowerCase()
+    if (normalizedSearch) {
+      filtered = filtered.filter((product) =>
+        product.title?.toLowerCase().includes(normalizedSearch)
       );
     }
 
-    // Price sorting
+    if (selectedCategory && selectedCategory !== "All") {
+      filtered = filtered.filter(
+        (product) => product.category?.toLowerCase() === selectedCategory.toLowerCase()
+      );
+    }
+
     if (priceSort === "low-to-high") {
-      filtered = filtered.sort(
-        (a, b) => parseFloat(a.price) - parseFloat(b.price)
-      );
+      filtered = filtered.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
     } else if (priceSort === "high-to-low") {
-      filtered = filtered.sort(
-        (a, b) => parseFloat(b.price) - parseFloat(a.price)
-      );
+      filtered = filtered.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
     }
 
     setFilteredProducts(filtered);
   };
 
-  // Apply filters when products or filters change
   useEffect(() => {
     applyFilters();
-  }, [products, selectedCategory, priceSort]);
+  }, [products, selectedCategory, priceSort, searchQuery]);
 
-  // Handle filter changes
-  const handleCategoryFilter = (category) => {
-    setSelectedCategory(category);
-  };
-
-  const handlePriceSort = (sortOrder) => {
-    setPriceSort(sortOrder);
-  };
-
-  const clearFilters = () => {
-    setSelectedCategory("");
-    setPriceSort("");
-  };
-
-  // We're now importing getAuthToken directly from authUtils
-
-  // Handle keyboard navigation for image preview
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!selectedImage) return;
+    setCurrentPage(1);
+  }, [products, selectedCategory, priceSort, searchQuery]);
 
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        e.preventDefault();
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
 
-        const totalImages = currentProductImages.length;
-        if (totalImages <= 1) return;
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
-        let newIndex = currentImageIndex;
-        if (e.key === "ArrowRight") {
-          newIndex = (currentImageIndex + 1) % totalImages;
-        } else if (e.key === "ArrowLeft") {
-          newIndex = (currentImageIndex - 1 + totalImages) % totalImages;
-        }
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
 
-        setCurrentImageIndex(newIndex);
-        setSelectedImage(currentProductImages[newIndex]);
-      } else if (e.key === "Escape") {
-        setSelectedImage(null);
+  const recommendedProducts = useMemo(() => {
+    if (!products.length) return [];
+
+    const activity = readActivity();
+    const hasActivity =
+      Object.keys(activity.productScores).length > 0 ||
+      Object.keys(activity.categoryScores).length > 0 ||
+      savedProductIds.length > 0;
+
+    if (!hasActivity) {
+      return products.slice(0, 6);
+    }
+
+    const scored = products
+      .map((product) => {
+        const byProduct = activity.productScores[product._id] || 0;
+        const byCategory = activity.categoryScores[product.category] || 0;
+        const favoriteBoost = savedProductIds.includes(product._id) ? 3 : 0;
+        const recencyBoost =
+          new Date(product.createdAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000 ? 0.5 : 0;
+
+        return {
+          ...product,
+          recommendationScore: byProduct * 2 + byCategory + favoriteBoost + recencyBoost,
+        };
+      })
+      .sort((a, b) => b.recommendationScore - a.recommendationScore);
+
+    return scored.filter((p) => p.recommendationScore > 0).slice(0, 6);
+  }, [products, savedProductIds]);
+
+  const fetchFavorites = async () => {
+    if (!isAuthenticated || !token) {
+      setSavedProductIds([]);
+      return;
+    }
+
+    try {
+      setFavoritesLoading(true);
+      const response = await fetch(`${API_BASE_URL}/auth/favorites`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const ids = Array.isArray(data.savedProducts)
+        ? data.savedProducts.map((item) => item._id)
+        : [];
+      setSavedProductIds(ids);
+    } catch (err) {
+      console.error("Favorite loading failed:", err);
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  const handleToggleFavorite = async (e, productId) => {
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      setFavoritesLoading(true);
+      const response = await fetch(`${API_BASE_URL}/auth/favorites/${productId}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Unable to update saved items");
       }
-    };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedImage, currentProductImages, currentImageIndex]);
+      const data = await response.json();
+      const ids = Array.isArray(data.savedProducts)
+        ? data.savedProducts.map((item) => item._id)
+        : [];
+      setSavedProductIds(ids);
+
+      const activityProduct = products.find((item) => item._id === productId);
+      if (activityProduct) {
+        recordProductActivity(activityProduct, "favorite");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  const handleProductOpen = (product) => {
+    recordProductActivity(product, "view");
+    navigate(`/product/${product._id}`);
+  };
 
   useEffect(() => {
-    dispatch(setCurrentPage("home"));
+    fetchFavorites();
+  }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    dispatch(setAppCurrentPage("home"));
     dispatch(setLoading(true));
 
-    // Fetch initial products
-    fetch("http://localhost:5000/api/product/all", {
+    fetch(`${API_BASE_URL}/product/all`, {
       signal: AbortSignal.timeout(5000),
     })
       .then((res) => {
@@ -134,8 +234,7 @@ function Home() {
         return res.json();
       })
       .then((data) => {
-        const limitedProducts = data.slice(0, 20);
-        dispatch(setProducts(limitedProducts));
+        dispatch(setProducts(data));
       })
       .catch((err) => {
         console.error("Error fetching products:", err);
@@ -143,7 +242,6 @@ function Home() {
       })
       .finally(() => dispatch(setLoading(false)));
 
-    // Listen for real-time product updates
     socket.on("new_product", (product) => {
       dispatch(addProduct(product));
     });
@@ -163,191 +261,175 @@ function Home() {
     };
   }, [dispatch]);
 
+  const handleCategoryFilter = (category) => setSelectedCategory(category);
+  const handlePriceSort = (sortOrder) => setPriceSort(sortOrder);
+  const handleSearch = () => setSearchQuery(searchInput);
+
+  const clearFilters = () => {
+    setSelectedCategory("");
+    setPriceSort("");
+    setSearchInput("");
+    setSearchQuery("");
+  };
+
+  const startItem = filteredProducts.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length);
+
   return (
-    <>
-    <section className="bg-gradient-to-b from-[#fcfdfd] via-[#fffbee] to-[#f7f9ff] h-full">
+    <section className="min-h-screen bg-transparent app-theme-surface">
       <HomeHeader />
-      {/* Fullscreen Image Preview */}
-      <AnimatePresence>
-        {selectedImage && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
-            onClick={() => setSelectedImage(null)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-                e.stopPropagation();
-                e.preventDefault();
 
-                const totalImages = currentProductImages.length;
-                if (totalImages <= 1) return;
-
-                let newIndex = currentImageIndex;
-                if (e.key === "ArrowRight") {
-                  newIndex = (currentImageIndex + 1) % totalImages;
-                } else if (e.key === "ArrowLeft") {
-                  newIndex =
-                    (currentImageIndex - 1 + totalImages) % totalImages;
-                }
-
-                setCurrentImageIndex(newIndex);
-                setSelectedImage(currentProductImages[newIndex]);
-              } else if (e.key === "Escape") {
-                setSelectedImage(null);
-              }
-            }}
-            tabIndex={0}
-          >
-            {/* Left Arrow Navigation */}
-            {currentProductImages.length > 1 && (
-              <button
-                className="absolute left-4 bg-white bg-opacity-50 hover:bg-opacity-80 rounded-full p-2 text-black text-2xl z-10 focus:outline-none"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const totalImages = currentProductImages.length;
-                  const newIndex =
-                    (currentImageIndex - 1 + totalImages) % totalImages;
-                  setCurrentImageIndex(newIndex);
-                  setSelectedImage(currentProductImages[newIndex]);
-                }}
-              >
-                ←
-              </button>
-            )}
-
-            <motion.img
-              src={selectedImage}
-              alt="preview"
-              className="max-w-[90vw] max-h-[90vh] rounded-xl"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            />
-
-            {/* Right Arrow Navigation */}
-            {currentProductImages.length > 1 && (
-              <button
-                className="absolute right-4 bg-white bg-opacity-50 hover:bg-opacity-80 rounded-full p-2 text-black text-2xl z-10 focus:outline-none"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const totalImages = currentProductImages.length;
-                  const newIndex = (currentImageIndex + 1) % totalImages;
-                  setCurrentImageIndex(newIndex);
-                  setSelectedImage(currentProductImages[newIndex]);
-                }}
-              >
-                →
-              </button>
-            )}
-
-            {/* Image Counter */}
-            {currentProductImages.length > 1 && (
-              <div className="absolute bottom-4 bg-black bg-opacity-50 px-3 py-1 rounded-full text-white text-sm">
-                {currentImageIndex + 1} / {currentProductImages.length}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Product List */}
       <motion.div
         className="min-h-screen px-3 sm:px-4 py-4 pb-20 sm:pb-28"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
       >
-        
-        {/* main header is here */}
-        <motion.div
-          className="flex items-center justify-center gap-1 sm:gap-3"
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{
-            scale: [0.95, 1.02, 1],
-            opacity: 1,
-            y: [0, -4, 0],
-          }}
-          transition={{
-            scale: { duration: 0.4 },
-            y: { repeat: Infinity, duration: 1.2, ease: "easeInOut" },
-            opacity: { duration: 0.4 },
-          }}
-        >
-
+        <div className="flex flex-col items-center justify-center text-center mt-6 mb-8">
           <motion.h1
-            className="font-bold text-2xl text-blue-900 tracking-wide p-6"
-            whileHover={{ scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 300 }}
+            className="text-4xl sm:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-purple-600 tracking-tight pb-2"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
           >
-            🛍️ ITM Buy & Sell
+            Explore the Marketplace
           </motion.h1>
-        </motion.div>
+          <motion.p
+            className="text-gray-500 font-medium mt-2 max-w-lg mx-auto px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            Discover items listed by your fellow students. From textbooks to electronics, find exactly what you need.
+          </motion.p>
+        </div>
 
-        {/* Filter Controls */}
         <motion.div
-          className="max-w-6xl mx-auto mb-4 sm:mb-6 p-3 sm:p-4 bg-white rounded-lg shadow-md border border-gray-200"
+          className="max-w-6xl mx-auto mb-8 p-5 sm:p-6 bg-white/40 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-white/60"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.4 }}
         >
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
-            {/* Category Filter */}
-            <div className="flex flex-wrap gap-2">
-              <span className="text-sm font-medium text-gray-700">
-                Category:
-              </span>
-              {categories.map((category) => (
-                <motion.button
-                  key={category}
-                  onClick={() => handleCategoryFilter(category)}
-                  className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                    selectedCategory === category ||
-                    (category === "All" && !selectedCategory)
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="relative w-full md:max-w-md flex items-center">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSearch();
+                  }}
+                  placeholder="Search products..."
+                  className="w-full pl-11 pr-28 py-3.5 rounded-full text-sm font-medium bg-white/70 backdrop-blur-md border border-white/50 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all placeholder-gray-400 text-gray-800"
+                />
+                <button
+                  onClick={handleSearch}
+                  className="absolute right-1.5 top-1.5 bottom-1.5 px-6 rounded-full text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md hover:shadow-lg hover:shadow-indigo-500/30 transition-all"
                 >
-                  {category}
-                </motion.button>
-              ))}
+                  Search
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="relative w-full md:w-auto">
+                  <select
+                    value={priceSort}
+                    onChange={(e) => handlePriceSort(e.target.value)}
+                    className="w-full md:w-auto appearance-none pl-5 pr-10 py-3.5 rounded-full text-sm font-bold bg-white/70 backdrop-blur-md border border-white/50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-sm cursor-pointer transition-all hover:bg-white/90"
+                  >
+                    <option value="">Sort by: Featured</option>
+                    <option value="low-to-high">Price: Low to High</option>
+                    <option value="high-to-low">Price: High to Low</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {(selectedCategory || priceSort || searchQuery) && (
+                    <motion.button
+                      onClick={clearFilters}
+                      className="px-4 py-3.5 rounded-full text-sm font-bold bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 transition-all shadow-sm flex items-center gap-2"
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.8, opacity: 0 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      <span className="hidden sm:inline">Clear</span>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
-            {/* Price Sort */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Sort:</span>
-              <select
-                value={priceSort}
-                onChange={(e) => handlePriceSort(e.target.value)}
-                className="px-3 py-1 rounded-full text-xs sm:text-sm border border-gray-300 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="">Default</option>
-                <option value="low-to-high">Price: Low to High</option>
-                <option value="high-to-low">Price: High to Low</option>
-              </select>
+            <div className="pt-2">
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex-shrink-0 mr-1">
+                  Categories
+                </span>
+                <div className="flex gap-2.5">
+                  {categories.map((category) => {
+                    const isActive = selectedCategory === category || (category === "All" && !selectedCategory);
+                    return (
+                      <motion.button
+                        key={category}
+                        onClick={() => handleCategoryFilter(category)}
+                        className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap flex-shrink-0 ${
+                          isActive
+                            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 border-transparent"
+                            : "bg-white/50 backdrop-blur-sm border border-white/60 text-gray-600 hover:bg-white/80 hover:text-indigo-600 hover:shadow-md"
+                        }`}
+                        whileHover={{ scale: 1.05, y: -2 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        {category}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-
-            {/* Clear Filters */}
-            {(selectedCategory || priceSort) && (
-              <motion.button
-                onClick={clearFilters}
-                className="px-3 py-1 rounded-full text-xs sm:text-sm bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Clear Filters
-              </motion.button>
-            )}
           </div>
         </motion.div>
 
-        {/* Loading State */}
+        {recommendedProducts.length > 0 && (
+          <section className="max-w-6xl mx-auto mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-gray-800">Recommended For You</h2>
+              <p className="text-xs sm:text-sm text-gray-500">Based on your recent activity</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {recommendedProducts.map((product) => (
+                <button
+                  key={`rec-${product._id}`}
+                  onClick={() => handleProductOpen(product)}
+                  className="text-left bg-white/70 backdrop-blur-xl border border-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition"
+                >
+                  <img
+                    src={product.images?.[0] || "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png"}
+                    alt={product.title}
+                    className="h-40 w-full object-cover"
+                  />
+                  <div className="p-4">
+                    <p className="font-bold text-gray-800 line-clamp-1">{product.title}</p>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
+                    <p className="text-emerald-600 font-bold mt-3">?{product.price}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         <AnimatePresence>
-          {useSelector((store) => store.app.loading) && (
+          {loading && (
             <motion.div
               className="flex justify-center items-center py-10"
               initial={{ opacity: 0 }}
@@ -363,149 +445,104 @@ function Home() {
           )}
         </AnimatePresence>
 
-        {/* Error State */}
         <AnimatePresence>
-          {useSelector((store) => store.app.error) && (
+          {error && (
             <motion.div
               className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative max-w-2xl mx-auto mb-4"
               initial={{ y: -20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -20, opacity: 0 }}
             >
-              <span className="block sm:inline">
-                {useSelector((store) => store.app.error)}
-              </span>
+              <span className="block sm:inline">{error}</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Products Grid */}
+        {!loading && filteredProducts.length > 0 && (
+          <div className="max-w-6xl mx-auto mb-6 flex items-center justify-between">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-gray-800">All Products</h2>
+            <p className="text-xs sm:text-sm text-gray-500">{filteredProducts.length} listing{filteredProducts.length !== 1 ? "s" : ""} available</p>
+          </div>
+        )}
+
         <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 max-w-6xl mx-auto"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 max-w-6xl mx-auto"
           initial="hidden"
           animate="visible"
           variants={{
             hidden: {},
             visible: {
-              transition: {
-                staggerChildren: 0.08,
-              },
+              transition: { staggerChildren: 0.08 },
             },
           }}
         >
-          {filteredProducts.map((product, index) => (
+          {paginatedProducts.map((product, index) => (
             <motion.div
               key={product._id || index}
-              className="bg-white p-3 sm:p-4 md:p-5 rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300 relative overflow-hidden flex flex-col"
+              className="cursor-pointer bg-white/60 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-white/80 transition-all duration-300 relative flex flex-col group hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:border-white hover:bg-white/90"
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              whileHover={{
-                scale: 1.03,
-                boxShadow: "0 8px 32px rgba(60,60,180,0.12)",
-              }}
-              transition={{ duration: 0.4, type: "spring" }}
+              whileHover={{ y: -8 }}
+              transition={{ duration: 0.4, type: "spring", bounce: 0.4 }}
+              onClick={() => handleProductOpen(product)}
             >
-              {/* New Label for recently added products */}
-              {new Date(product.createdAt).getTime() >
-                Date.now() - 86400000 && (
-                <motion.div
-                  className="absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full shadow font-bold px-3 py-1 rounded-bl-lg z-10"
-                  initial={{ scale: 0.7, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  NEW
-                </motion.div>
-              )}
-
-              {/* Product Images */}
-              {product.images?.length > 0 ? (
-                <motion.div
-                  className="relative h-36 sm:h-40 md:h-48 mb-2 sm:mb-3 overflow-hidden rounded-lg bg-gray-100"
-                  initial={{ opacity: 0.7 }}
-                  animate={{ opacity: 1 }}
-                  whileHover={{ scale: 1.02 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <motion.img
-                    src={product.images[0]}
-                    alt={product.title}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer"
-                    onClick={() => {
-                      setSelectedImage(product.images[0]);
-                      setCurrentProductImages(product.images);
-                      setCurrentImageIndex(0);
-                    }}
-                    loading="lazy"
-                    whileHover={{ scale: 1.08 }}
-                    transition={{ duration: 0.2 }}
-                  />
-                  {product.images.length > 1 && (
-                    <motion.div
-                      className="absolute bottom-2 right-2 flex space-x-1"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      {product.images.slice(1, 4).map((img, i) => (
-                        <motion.div
-                          key={i}
-                          className="w-8 h-8 rounded-md overflow-hidden border border-white cursor-pointer hover:opacity-80"
-                          whileHover={{ scale: 1.1 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedImage(img);
-                            setCurrentProductImages(product.images);
-                            setCurrentImageIndex(i + 1); // +1 because these are images starting from index 1
-                          }}
-                        >
-                          <img
-                            src={img}
-                            alt="thumbnail"
-                            className="w-full h-full object-cover"
-                          />
-                        </motion.div>
-                      ))}
-                      {product.images.length > 4 && (
-                        <motion.div
-                          className="w-8 h-8 rounded-md bg-black bg-opacity-60 flex items-center justify-center text-white text-xs border border-white"
-                          initial={{ scale: 0.8 }}
-                          animate={{ scale: 1 }}
-                        >
-                          +{product.images.length - 4}
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  )}
-                </motion.div>
-              ) : (
-                <motion.div
-                  className="h-36 sm:h-40 md:h-48 mb-2 sm:mb-3 bg-gray-100 rounded-lg flex items-center justify-center"
-                  initial={{ opacity: 0.7 }}
-                  animate={{ opacity: 1 }}
-                >
-                  <span className="text-gray-400">No image</span>
-                </motion.div>
-              )}
-
-              {/* Product Info */}
-              <motion.div
-                className="flex-grow"
-                initial={{ opacity: 0.8 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
+              <button
+                type="button"
+                onClick={(e) => handleToggleFavorite(e, product._id)}
+                className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-400 shadow-sm transition hover:text-rose-500"
               >
-                <div className="flex justify-between items-start mb-1">
-                  <motion.h2
-                    className="font-semibold text-indigo-700 text-base sm:text-lg line-clamp-1"
+                {savedProductIds.includes(product._id) ? (
+                  <AiFillHeart className="h-5 w-5 text-rose-500" />
+                ) : (
+                  <AiOutlineHeart className="h-5 w-5" />
+                )}
+              </button>
+
+              <div className="relative h-48 sm:h-56 w-full overflow-hidden rounded-t-[2rem] bg-gray-100/50">
+                {new Date(product.createdAt).getTime() > Date.now() - 86400000 && (
+                  <motion.div
+                    className="absolute top-4 right-4 bg-emerald-400 text-white text-[10px] tracking-widest uppercase font-extrabold px-3 py-1.5 rounded-full shadow-lg shadow-emerald-500/30 z-20"
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.3, delay: 0.2 }}
+                  >
+                    NEW
+                  </motion.div>
+                )}
+
+                {product.images?.length > 0 ? (
+                  <>
+                    <motion.img
+                      src={product.images[0]}
+                      alt={product.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200">
+                    <svg className="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-5 sm:p-6 flex flex-col flex-grow">
+                <div className="flex justify-between items-start mb-3 gap-3">
+                  <motion.div
+                    className="space-y-2"
                     initial={{ x: -10, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.3 }}
                   >
-                    {product.title}
-                  </motion.h2>
+                    <h2 className="font-extrabold text-indigo-950 text-lg sm:text-xl line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                      {product.title}
+                    </h2>
+                  </motion.div>
                   <motion.span
-                    className="bg-indigo-100 text-indigo-800 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded capitalize"
+                    className="bg-indigo-50/80 text-indigo-700 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-md whitespace-nowrap border border-indigo-100/50"
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.3 }}
@@ -515,7 +552,7 @@ function Home() {
                 </div>
 
                 <motion.p
-                  className="text-gray-600 text-xs sm:text-sm mb-1 sm:mb-2 line-clamp-2"
+                  className="text-gray-500 text-sm mb-5 line-clamp-2 leading-relaxed"
                   initial={{ opacity: 0.7 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
@@ -523,23 +560,25 @@ function Home() {
                   {product.description}
                 </motion.p>
 
-                <div className="mt-auto pt-2 border-t border-gray-100">
-                  <div className="flex justify-between items-center">
-                    <motion.p
-                      className="text-green-600 font-medium text-base sm:text-lg"
-                      initial={{ scale: 0.9, opacity: 0.8 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      ₹{product.price}
+                <div className="mt-auto flex flex-col gap-4">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <motion.p
+                        className="text-2xl font-black text-emerald-500 flex items-baseline gap-1 tracking-tight"
+                        initial={{ scale: 0.9, opacity: 0.8 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <span className="text-lg">?</span>{product.price}
+                      </motion.p>
                       {product.negotiable && (
-                        <span className="text-[10px] sm:text-xs text-gray-500 ml-1">
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                           (Negotiable)
                         </span>
                       )}
-                    </motion.p>
+                    </div>
                     <motion.p
-                      className="text-[10px] sm:text-xs text-gray-400"
+                      className="text-[11px] font-medium text-gray-400/80"
                       initial={{ opacity: 0.7 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.3 }}
@@ -548,90 +587,97 @@ function Home() {
                     </motion.p>
                   </div>
 
-                  <div className="flex justify-between items-center mt-1 sm:mt-2">
-                    <div className="flex items-center gap-2">
-                      {/* Seller Display Picture */}
-                      <img
-                        src={
-                          product.user?.profileImage ||
-                          "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png"
-                        }
-                        alt={product.user?.name || "Seller"}
-                        className="w-8 h-8 rounded-full object-cover border border-gray-300"
-                      />
-                      <div>
-                        <motion.div
-                          className="text-[10px] sm:text-xs font-medium text-gray-700"
-                          initial={{ opacity: 0.7 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {product.user?.name || "Unknown Seller"}
-                        </motion.div>
-                        <motion.div
-                          className="text-[9px] sm:text-[10px] text-gray-500"
-                          initial={{ opacity: 0.7 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {product.user?.branch || "Branch not specified"}
-                        </motion.div>
-                      </div>
-                    </div>
+                  <div className="h-px w-full bg-gray-100"></div>
 
-                    <div className="flex gap-2">
-                      <motion.button
-                        className="text-indigo-600 text-[10px] sm:text-xs hover:underline font-medium"
-                        whileHover={{ scale: 1.05, color: "#4338ca" }}
-                        onClick={() => {
-                          const whatsappNumber = product.user?.whatsapp;
-                          if (whatsappNumber) {
-                            // Remove any non-numeric characters and ensure it starts with country code
-                            const cleanNumber = whatsappNumber.replace(
-                              /[^0-9]/g,
-                              ""
-                            );
-                            const message = encodeURIComponent(
-                              `Hi! I'm interested in your product: ${product.title}`
-                            );
-                            window.open(
-                              `https://wa.me/${cleanNumber}?text=${message}`,
-                              "_blank"
-                            );
-                          } else {
-                            alert(
-                              "Seller has not provided WhatsApp contact information"
-                            );
-                          }
-                        }}
-                      >
-                        Contact
-                      </motion.button>
+                  <div className="flex justify-between items-center pt-1">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <img
+                          src={product.user?.profileImage || "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png"}
+                          alt={product.user?.name || "Seller"}
+                          className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm"
+                        />
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (product.user?._id) {
+                              navigate(`/seller/${product.user._id}`);
+                            }
+                          }}
+                          className="text-left"
+                        >
+                          <motion.div
+                            className="text-xs font-bold text-gray-700 hover:text-indigo-600 transition"
+                            initial={{ opacity: 0.7 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            {product.user?.name || "Unknown Seller"}
+                          </motion.div>
+                          <motion.div
+                            className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider"
+                            initial={{ opacity: 0.7 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            {product.user?.branch || "Student"}
+                          </motion.div>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </motion.div>
           ))}
         </motion.div>
 
-        {/* Empty State */}
-        {!useSelector((store) => store.app.loading) &&
-          products.length === 0 && (
-            <motion.div
-              className="text-center py-10"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-            >
-              <p className="text-gray-500">
-                No products available at the moment.
+        {!loading && filteredProducts.length > 0 && (
+          <div className="max-w-6xl mx-auto mt-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-sm text-gray-500">
+                Showing {startItem}-{endItem} of {filteredProducts.length} products
               </p>
-            </motion.div>
-          )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 rounded-full text-sm font-semibold bg-white border border-gray-200 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm font-semibold text-gray-700 px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 rounded-full text-sm font-semibold bg-white border border-gray-200 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && products.length === 0 && (
+          <motion.div
+            className="text-center py-10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <p className="text-gray-500">No products available at the moment.</p>
+          </motion.div>
+        )}
       </motion.div>
     </section>
-    </>
   );
 }
 

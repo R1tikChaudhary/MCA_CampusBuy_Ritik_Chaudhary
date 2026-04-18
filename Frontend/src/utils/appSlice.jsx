@@ -11,6 +11,9 @@ const appSlice = createSlice({
         // General App State
         currentPage: 'home',
         notifications: [],
+
+        // Lost & Found Alert
+        hasLostFoundAlert: false,
         
         // Search and Filter
         searchQuery: '',
@@ -63,6 +66,14 @@ const appSlice = createSlice({
             state.notifications = [];
         },
         
+        // Lost & Found Alert Actions
+        setLostFoundAlert: (state) => {
+            state.hasLostFoundAlert = true;
+        },
+        clearLostFoundAlert: (state) => {
+            state.hasLostFoundAlert = false;
+        },
+
         // Search and Filter Actions
         setSearchQuery: (state, action) => {
             state.searchQuery = action.payload;
@@ -91,6 +102,8 @@ export const {
     addNotification,
     removeNotification,
     clearNotifications,
+    setLostFoundAlert,
+    clearLostFoundAlert,
     setSearchQuery,
     setFilters,
     resetFilters

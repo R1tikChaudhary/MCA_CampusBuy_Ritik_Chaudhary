@@ -4,6 +4,7 @@ import {
   SetShowPassword,
   updateLoginForm,
   setToken,
+  setRefreshToken,
   setAuthenticated,
   setUser,
   resetLoginForm,
@@ -15,17 +16,25 @@ import { Link, useNavigate } from "react-router-dom";
 import Header from "../Component/Header.jsx";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { useAuth } from "../utils/authUtils";
 
 function Login() {
   const { showpassword, loginForm } = useSelector((store) => store.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     dispatch(hideLoginButton());
     dispatch(setCurrentPage("login"));
   }, [dispatch]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/home", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     dispatch(updateLoginForm({ [e.target.name]: e.target.value }));
@@ -47,6 +56,7 @@ function Login() {
 
       if (res.ok) {
         dispatch(setToken(data.token));
+        dispatch(setRefreshToken(data.refreshToken));
         dispatch(setAuthenticated(true));
 
         const userData = data.user || { email: loginForm.email };
@@ -93,8 +103,8 @@ function Login() {
     <>
       <ToastContainer />
       <Header />
-      <section className="bg-gradient-to-b from-[#fcfdfd] via-[#fffbee] to-[#f7f9ff] min-h-screen flex items-center justify-center px-4 py-8">
-        <div className="flex flex-col md:flex-row w-full max-w-2xl mx-auto shadow-lg rounded-lg overflow-hidden bg-white">
+      <section className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 py-8">
+        <div className="flex flex-col md:flex-row w-full max-w-4xl mx-auto shadow-2xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-xl border border-white/50">
           {/* Left Image Section */}
           <div className="hidden md:block md:w-1/2">
             <img
@@ -127,33 +137,35 @@ function Login() {
               </p>
 
               {/* Email */}
-              <div className="flex items-center w-full border border-gray-300/60 h-12 rounded-full pl-6 gap-2 mt-4">
+              <div className="flex items-center w-full border border-white/60 bg-white/50 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:bg-white h-12 rounded-2xl px-4 gap-3 mt-4 transition-all duration-300 shadow-sm">
+                <span className="text-gray-400">✉️</span>
                 <input
                   type="email"
                   name="email"
                   value={loginForm.email}
                   onChange={handleChange}
                   placeholder="Email ID"
-                  className="bg-transparent text-gray-500/80 placeholder-gray-500/80 outline-none text-sm w-full h-full"
+                  className="bg-transparent text-gray-800 placeholder-gray-400 outline-none text-sm w-full h-full"
                   required
                 />
               </div>
 
               {/* Password */}
-              <div className="relative flex items-center mt-6 w-full border border-gray-300/60 h-12 rounded-full pl-6 pr-12 gap-2">
+              <div className="relative flex items-center mt-6 w-full border border-white/60 bg-white/50 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:bg-white h-12 rounded-2xl px-4 pr-12 gap-3 transition-all duration-300 shadow-sm">
+                <span className="text-gray-400">🔒</span>
                 <input
                   type={showpassword ? "text" : "password"}
                   name="password"
                   value={loginForm.password}
                   onChange={handleChange}
                   placeholder="Password"
-                  className="bg-transparent text-gray-500/80 placeholder-gray-500/80 outline-none text-sm w-full h-full"
+                  className="bg-transparent text-gray-800 placeholder-gray-400 outline-none text-sm w-full h-full"
                   required
                 />
                 <button
                   type="button"
                   onClick={toggleShowPassword}
-                  className="absolute right-4 text-xl text-gray-500 hover:text-pink-600 transition"
+                  className="absolute right-4 text-xl text-gray-500 hover:text-indigo-600 transition-colors"
                 >
                   {showpassword ? "🙈" : "👁️"}
                 </button>
@@ -174,10 +186,10 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`mt-6 w-full h-11 rounded-full text-white ${
+                className={`mt-8 w-full h-12 rounded-2xl text-white font-medium shadow-lg transform transition-all duration-300 ${
                   loading
                     ? "bg-indigo-300 cursor-not-allowed"
-                    : "bg-indigo-500 hover:opacity-90"
+                    : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:-translate-y-1 hover:shadow-indigo-500/30"
                 }`}
               >
                 {loading ? "Logging in..." : "Login"}

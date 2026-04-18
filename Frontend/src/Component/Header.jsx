@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiMenu, FiX } from "react-icons/fi";
+import ThemeToggle from "./ThemeToggle";
 
 const Header = () => {
   const { showLogin, showSignup } = useSelector((state) => state.header);
@@ -21,7 +22,7 @@ const Header = () => {
   }, []);
 
   return (
-    <header className="shadow-md flex items-center justify-between px-4 py-2 relative z-50 bg-white">
+    <header className="flex items-center justify-between px-6 py-3 sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-sm transition-all duration-300">
       {/* Logo */}
       <Link to="/" className="flex items-center">
         <motion.img
@@ -34,11 +35,11 @@ const Header = () => {
       </Link>
 
       {/* Desktop Menu */}
-      <div className="hidden md:flex space-x-4">
+      <div className="hidden md:flex items-center space-x-4">
         {showLogin && (
           <Link
             to="/login"
-            className="text-shadow-black bg-indigo-100 px-6 py-3 rounded-full text-sm font-medium hover:bg-indigo-500 hover:text-white transition"
+            className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md hover:shadow-lg hover:shadow-indigo-500/30 px-6 py-2.5 rounded-full font-bold hover:-translate-y-0.5 transition-all duration-300"
           >
             Login
           </Link>
@@ -46,15 +47,17 @@ const Header = () => {
         {showSignup && (
           <Link
             to="/signup"
-            className="text-shadow-black bg-indigo-100 px-6 py-3 rounded-full text-sm font-medium hover:bg-indigo-500 hover:text-white transition"
+            className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md hover:shadow-lg hover:shadow-indigo-500/30 px-6 py-2.5 rounded-full font-bold hover:-translate-y-0.5 transition-all duration-300"
           >
             Sign up
           </Link>
         )}
+        <ThemeToggle />
       </div>
 
       {/* Mobile Menu Button */}
-      <div className="md:hidden">
+      <div className="md:hidden flex items-center gap-2">
+        <ThemeToggle />
         <button
           className="text-2xl text-indigo-700"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -92,6 +95,9 @@ const Header = () => {
                 Sign up
               </Link>
             )}
+            <div className="pt-1">
+              <ThemeToggle />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

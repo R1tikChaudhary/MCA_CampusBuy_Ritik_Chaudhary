@@ -1,8 +1,38 @@
 const User = require("../models/User");
 const TempUser = require("../models/TempUser");
+const Product = require("../models/Product");
+const Review = require("../models/Review");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
+const { isAdminUser } = require("../utils/adminUtils");
+
+const ACCESS_TOKEN_EXPIRES_IN = "1h";
+const REFRESH_TOKEN_EXPIRES_IN = "5d";
+
+const signAccessToken = (userId) =>
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+  });
+
+const signRefreshToken = (userId) =>
+  jwt.sign(
+    { id: userId, type: "refresh" },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    {
+      expiresIn: REFRESH_TOKEN_EXPIRES_IN,
+    }
+  );
+
+const getPublicUserData = (userDoc) => {
+  const source = userDoc?._doc || userDoc;
+  if (!source) return null;
+  const { password, ...userData } = source;
+  return {
+    ...userData,
+    isAdmin: isAdminUser(source),
+  };
+};
 
 // 📧 Email transporter
 const transporter = nodemailer.createTransport({
@@ -93,26 +123,180 @@ exports.login = async (req, res) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "24h",
-  });
+  const token = signAccessToken(user._id);
+  const refreshToken = signRefreshToken(user._id);
+
+  user.refreshToken = refreshToken;
+  user.refreshTokenExpires = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  await user.save();
 
   // Don't send password in the response
-  const { password: pwd, ...userData } = user._doc;
+  const userData = getPublicUserData(user);
+  res.json({ token, refreshToken, user: userData });
+};
 
-  res.json({ token, user: userData });
+exports.refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: "Refresh token is required" });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
+    );
+
+    if (decoded.type !== "refresh") {
+      return res.status(401).json({ message: "Invalid refresh token" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const refreshTokenExpired =
+      !user.refreshTokenExpires || user.refreshTokenExpires < new Date();
+
+    if (user.refreshToken !== refreshToken || refreshTokenExpired) {
+      user.refreshToken = undefined;
+      user.refreshTokenExpires = undefined;
+      await user.save();
+      return res.status(401).json({ message: "Refresh token expired. Please login again." });
+    }
+
+    const token = signAccessToken(user._id);
+    const userData = getPublicUserData(user);
+    res.json({ token, refreshToken, user: userData });
+  } catch (error) {
+    res.status(401).json({ message: "Invalid or expired refresh token" });
+  }
 };
 
 // Get user profile
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id)
+      .select('-password')
+      .populate({
+        path: 'savedProducts',
+        match: { moderationStatus: { $ne: 'Removed' } },
+        populate: { path: 'user', select: 'name profileImage branch whatsapp' },
+      });
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(user);
+    res.json(getPublicUserData(user));
   } catch (error) {
     console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.getSellerProfile = async (req, res) => {
+  try {
+    const { id: sellerId } = req.params;
+
+    if (!sellerId || !sellerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid seller ID' });
+    }
+
+    const seller = await User.findById(sellerId).select('-password');
+    if (!seller) {
+      return res.status(404).json({ message: 'Seller not found' });
+    }
+
+    const sellerProducts = await Product.find({
+      user: sellerId,
+      moderationStatus: { $ne: 'Removed' },
+    })
+      .sort({ createdAt: -1 })
+      .limit(12)
+      .select('title price category images status createdAt');
+
+    const sellerReviews = await Review.find({ seller: sellerId });
+    const reviewCount = sellerReviews.length;
+    const averageRating = reviewCount
+      ? sellerReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+      : 0;
+
+    res.json({
+      seller: getPublicUserData(seller),
+      productCount: sellerProducts.length,
+      reviewCount,
+      averageRating: Number(averageRating.toFixed(1)),
+      topProducts: sellerProducts,
+    });
+  } catch (error) {
+    console.error('Error fetching seller profile:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.getFavorites = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate({
+        path: 'savedProducts',
+        match: { moderationStatus: { $ne: 'Removed' } },
+        populate: { path: 'user', select: 'name profileImage branch whatsapp' },
+      })
+      .select('savedProducts');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ savedProducts: user.savedProducts || [] });
+  } catch (error) {
+    console.error('Error fetching favorites:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.toggleFavoriteProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!productId || !productId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isSaved = user.savedProducts.some(
+      (savedId) => savedId.toString() === productId
+    );
+
+    if (isSaved) {
+      user.savedProducts = user.savedProducts.filter(
+        (savedId) => savedId.toString() !== productId
+      );
+    } else {
+      user.savedProducts.push(productId);
+    }
+
+    await user.save();
+
+    await user.populate({
+      path: 'savedProducts',
+      match: { moderationStatus: { $ne: 'Removed' } },
+      populate: { path: 'user', select: 'name profileImage branch whatsapp' },
+    });
+
+    res.json({ saved: !isSaved, savedProducts: user.savedProducts });
+  } catch (error) {
+    console.error('Error toggling favorite product:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -138,7 +322,7 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    res.json({ message: 'Profile updated successfully', user });
+    res.json({ message: 'Profile updated successfully', user: getPublicUserData(user) });
   } catch (error) {
     console.error('Error updating profile:', error);
     res.status(500).json({ message: 'Server error' });

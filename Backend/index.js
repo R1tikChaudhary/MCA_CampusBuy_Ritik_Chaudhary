@@ -16,16 +16,17 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: ['http://localhost:5173', 'http://localhost:5174'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   },
 });
+app.set("io", io);
 
 // Configure CORS with specific options
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174'], // Allow both dev server ports
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
@@ -37,6 +38,9 @@ connectDB();
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
 app.use("/api/product", require("./routes/productRoutes"));
+app.use("/api/review", require("./routes/reviewRoutes"));
+app.use("/api/lost-found", require("./routes/lostFoundRoutes"));
+app.use("/api/admin", require("./routes/adminRoutes"));
 
 // Add this for debugging
 app.use((req, res, next) => {

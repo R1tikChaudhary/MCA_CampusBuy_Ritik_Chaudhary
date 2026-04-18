@@ -11,6 +11,7 @@ const productSlice = createSlice({
             condition: '',
             price: '',
             negotiable: false,
+            tags: '',
             images: []
         },
         
@@ -37,6 +38,7 @@ const productSlice = createSlice({
                 condition: '',
                 price: '',
                 negotiable: false,
+                tags: '',
                 images: []
             };
         },

@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const connectDB = async (retries = 5, delayMs = 5000) => {
   try {
-    const uri = process.env.MONGO_URI;
+    const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
     if (!uri) {
-      console.error("MongoDB URI not provided in environment");
+      console.error("MongoDB URI not provided in environment (MONGODB_URI or MONGO_URI)");
       return;
     }
 

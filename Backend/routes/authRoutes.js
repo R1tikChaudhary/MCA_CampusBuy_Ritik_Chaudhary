@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { sendOtp, verifyOtp, login, updateProfile, getUserProfile, forgotPassword, resetPassword, resendOtp } = require("../controllers/authController");
+const { sendOtp, verifyOtp, login, refreshToken, updateProfile, getUserProfile, getSellerProfile, getFavorites, toggleFavoriteProduct, forgotPassword, resetPassword, resendOtp } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 const multer = require("multer");
 const cloudinary = require("../config/cloudinary");
@@ -12,10 +12,14 @@ router.post("/send-otp", sendOtp);
 router.post("/verify-otp", verifyOtp);
 router.post("/resend-otp", resendOtp); // Add this line
 router.post("/login", login);
+router.post("/refresh-token", refreshToken);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.put("/update-profile", authMiddleware, updateProfile);
 router.get("/profile", authMiddleware, getUserProfile);
+router.get("/seller/:id", getSellerProfile);
+router.get("/favorites", authMiddleware, getFavorites);
+router.post("/favorites/:productId", authMiddleware, toggleFavoriteProduct);
 
 // Upload profile image
 router.post("/upload-image", authMiddleware, upload.single("image"), async (req, res) => {

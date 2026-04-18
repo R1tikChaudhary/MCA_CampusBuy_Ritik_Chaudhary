@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("./models/User");
+const Product = require("./models/Product");
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 require("dotenv").config();
 
 const connectDB = async () => {
@@ -17,9 +20,10 @@ const connectDB = async () => {
 const seedUsers = async () => {
   await connectDB();
 
-  // Clear existing users
+  // Clear existing collections
+  await Product.deleteMany({});
   await User.deleteMany({});
-  console.log("Existing users deleted");
+  console.log("Existing users and products deleted");
 
   const users = [
     {
@@ -89,7 +93,7 @@ const seedUsers = async () => {
       email: "user10@itm.ac.in",
       name: "Saanvi Rao",
       password: await bcrypt.hash("password123", 10),
-      branch: "CSE",
+      branch: "CSE",e
       whatsapp: "9153174167"
     },
     {
@@ -374,8 +378,133 @@ const seedUsers = async () => {
     }
   ];
 
-  await User.insertMany(users);
+  const createdUsers = await User.insertMany(users);
   console.log("50 users seeded successfully");
+
+  const categories = ["Electronics", "Furniture", "Books", "Fashion", "Vehicles"];
+  const conditions = ["New", "Like New", "Good", "Used"];
+
+  const categoryData = {
+    Electronics: {
+      titles: ["Bluetooth Speaker", "Wireless Mouse", "Gaming Keyboard", "Power Bank", "Smartwatch", "Laptop Stand"],
+      descriptions: [
+        "Works perfectly and has minimal usage.",
+        "Excellent condition and ready to use.",
+        "Great for college work and daily tasks.",
+        "Well maintained and fully functional.",
+        "Battery health is good and performance is smooth."
+      ],
+      images: [
+        "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=1200&q=80"
+      ],
+      priceRange: [300, 18000]
+    },
+    Furniture: {
+      titles: ["Study Table", "Office Chair", "Bookshelf", "Bedside Lamp", "Storage Rack", "Bean Bag"],
+      descriptions: [
+        "Sturdy build and ideal for hostel or room use.",
+        "Comfortable for long study sessions.",
+        "No major defects, clean and ready.",
+        "Compact design, fits in small spaces.",
+        "Good value and in well-kept condition."
+      ],
+      images: [
+        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1486946255434-2466348c2166?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1200&q=80"
+      ],
+      priceRange: [500, 12000]
+    },
+    Books: {
+      titles: ["Engineering Mathematics", "Data Structures", "DBMS Guide", "Competitive Coding Book", "Physics Notes", "Semester Combo"],
+      descriptions: [
+        "Helpful for semester preparation and exams.",
+        "Neat pages and no missing content.",
+        "Useful reference material from recent batches.",
+        "Marked important topics for quick revision.",
+        "Affordable set for students."
+      ],
+      images: [
+        "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1200&q=80"
+      ],
+      priceRange: [99, 3500]
+    },
+    Fashion: {
+      titles: ["Hoodie", "Sneakers", "College Jacket", "Backpack", "Denim Shirt", "Sports T-shirt"],
+      descriptions: [
+        "Trendy and comfortable for everyday wear.",
+        "Neatly used and maintained.",
+        "Great fit and clean condition.",
+        "Perfect for campus and casual outings.",
+        "Looks almost new and stylish."
+      ],
+      images: [
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1491637639811-60e2756cc1c7?auto=format&fit=crop&w=1200&q=80"
+      ],
+      priceRange: [250, 5000]
+    },
+    Vehicles: {
+      titles: ["Bicycle", "Scooty Helmet", "Bike Cover", "Cycle Lock", "Car Phone Holder", "Air Pump"],
+      descriptions: [
+        "Reliable and useful for daily commute.",
+        "Condition is good with regular care.",
+        "Ready for immediate use.",
+        "No hidden issues and fair pricing.",
+        "Practical option for students."
+      ],
+      images: [
+        "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1519583272095-6433daf26b6e?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1200&q=80"
+      ],
+      priceRange: [199, 25000]
+    }
+  };
+
+  const seededProducts = [];
+  for (let i = 0; i < 100; i++) {
+    const category = categories[i % categories.length];
+    const categoryMeta = categoryData[category];
+    const titleBase = categoryMeta.titles[i % categoryMeta.titles.length];
+    const description = categoryMeta.descriptions[i % categoryMeta.descriptions.length];
+    const [minPrice, maxPrice] = categoryMeta.priceRange;
+
+    const price = Math.floor(minPrice + ((i * 137) % (maxPrice - minPrice + 1)));
+    const createdAt = new Date(Date.now() - i * 3 * 60 * 60 * 1000);
+    const isSold = i % 5 === 0;
+    const seller = createdUsers[i % createdUsers.length];
+    let buyer = null;
+    if (isSold) {
+      buyer = createdUsers[(i + 7) % createdUsers.length];
+      if (buyer._id.toString() === seller._id.toString()) {
+        buyer = createdUsers[(i + 11) % createdUsers.length];
+      }
+    }
+
+    seededProducts.push({
+      title: `${titleBase} #${i + 1}`,
+      description,
+      category,
+      condition: conditions[i % conditions.length],
+      price,
+      negotiable: i % 3 === 0,
+      images: [categoryMeta.images[i % categoryMeta.images.length]],
+      user: seller._id,
+      status: isSold ? "Sold" : "Available",
+      buyer: buyer ? buyer._id : null,
+      soldAt: isSold ? new Date(createdAt.getTime() + 2 * 60 * 60 * 1000) : null,
+      createdAt,
+    });
+  }
+
+  await Product.insertMany(seededProducts);
+  console.log("100 products seeded successfully across categories and users");
 
   mongoose.connection.close();
 };

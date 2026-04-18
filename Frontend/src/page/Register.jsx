@@ -83,11 +83,11 @@ function Register() {
       <Header />
       <ToastContainer position="top-center" />
 
-      <section className="bg-gradient-to-b from-[#fcfdfd] via-[#fffbee] to-[#f7f9ff] h-full">
-        <div className="min-h-screen flex items-center justify-center py-10 px-4">
-          <div className="w-full max-w-xl shadow-xl rounded-lg p-10 ">
+      <section className="min-h-[calc(100vh-80px)] py-10">
+        <div className="flex items-center justify-center px-4">
+          <div className="w-full max-w-xl shadow-2xl rounded-3xl p-10 bg-white/70 backdrop-blur-xl border border-white/50">
             <form
-              className="flex flex-col text-sm bg-gradient-to-b from-[#fcfdfd] via-[#fffbee] to-[#f7f9ff] h-full"
+              className="flex flex-col text-sm"
               onSubmit={handleSubmit}
             >
               <h1 className="text-4xl font-bold py-4 text-center text-black">
@@ -182,8 +182,8 @@ function Register() {
                 className={`${
                   isSubmitting
                     ? "bg-indigo-400 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                } flex items-center justify-center gap-2 mt-6 text-white py-3 w-full rounded-xl font-semibold transition duration-300 shadow-lg cursor-pointer`}
+                    : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:-translate-y-1 hover:shadow-indigo-500/30"
+                } flex items-center justify-center gap-2 mt-8 text-white py-3 h-12 w-full rounded-2xl font-medium transition-all duration-300 shadow-lg cursor-pointer`}
               >
                 {isSubmitting ? "Submitting..." : "Submit Form"}
                 {!isSubmitting && (
@@ -233,8 +233,8 @@ function FormInput({
         {label}
         <span className="text-red-500"> *</span>
       </label>
-      <div className="flex items-center h-12 px-4 rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-indigo-400 transition-all relative">
-        <Icon className="w-5 h-5 text-slate-500" />
+      <div className="flex items-center h-12 px-4 rounded-2xl border border-white/60 bg-white/50 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:bg-white transition-all duration-300 shadow-sm relative">
+        <Icon className="w-5 h-5 text-indigo-400" />
         <input
           name={name}
           value={value}
@@ -243,13 +243,13 @@ function FormInput({
           placeholder={placeholder}
           required={required}
           pattern={pattern}
-          className="h-full px-3 w-full outline-none bg-transparent text-slate-800 placeholder-slate-400"
+          className="h-full px-3 w-full outline-none bg-transparent text-gray-800 placeholder-gray-400"
         />
         {showToggle && (
           <button
             type="button"
             onClick={onToggle}
-            className="absolute right-3 text-xl text-gray-500 hover:text-pink-600 focus:outline-none"
+            className="absolute right-3 text-xl text-gray-500 hover:text-indigo-600 transition-colors focus:outline-none"
           >
             {showPass ? "🙈" : "👁️"}
           </button>

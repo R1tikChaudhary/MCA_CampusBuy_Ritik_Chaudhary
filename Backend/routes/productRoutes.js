@@ -9,13 +9,11 @@ const authMiddleware = require("../middleware/authMiddleware");
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// @route   GET /api/product/all
-// Update the population to include profileImage and branch
-// Add this to your /all endpoint
-// GET all products for logged-in user
 router.get("/user", authMiddleware, async (req, res) => {
   try {
-    const products = await Product.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const products = await Product.find({ user: req.user._id }).sort({
+      createdAt: -1,
+    });
     res.json(products);
   } catch (err) {
     console.error("Error fetching user products:", err);
@@ -23,12 +21,28 @@ router.get("/user", authMiddleware, async (req, res) => {
   }
 });
 
+router.get("/purchases/me", authMiddleware, async (req, res) => {
+  try {
+    const purchases = await Product.find({
+      buyer: req.user._id,
+      status: "Sold",
+    })
+      .populate("user", "name email profileImage branch whatsapp")
+      .sort({ soldAt: -1, createdAt: -1 });
+
+    res.json(purchases);
+  } catch (error) {
+    console.error("Error fetching purchase history:", error);
+    res.status(500).json({ error: "Failed to fetch purchase history" });
+  }
+});
+
 router.get("/all", async (req, res) => {
   try {
-    const products = await Product.find()
-      .populate('user', 'name email profileImage branch whatsapp')
+    const products = await Product.find({ moderationStatus: { $ne: "Removed" } })
+      .populate("user", "name email profileImage branch whatsapp")
       .sort({ createdAt: -1 });
-    
+
     res.json(products);
   } catch (error) {
     console.error("Error fetching products:", error);
@@ -36,16 +50,52 @@ router.get("/all", async (req, res) => {
   }
 });
 
-// Update the /api/product/:id endpoint
-router.get("/:id", async (req, res) => {
+router.get("/recommendations/:productId", async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id)
-      .populate('user', 'name email profileImage branch whatsapp');
-    
+    const { productId } = req.params;
+    const product = await Product.findById(productId);
+
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
-    
+
+    const match = {
+      _id: { $ne: product._id },
+      moderationStatus: { $ne: "Removed" },
+    };
+
+    if (product.tags && product.tags.length > 0) {
+      match.$or = [
+        { tags: { $in: product.tags } },
+        { category: product.category },
+      ];
+    } else {
+      match.category = product.category;
+    }
+
+    const recommended = await Product.find(match)
+      .populate("user", "name email profileImage branch whatsapp")
+      .sort({ createdAt: -1 })
+      .limit(8);
+
+    res.json({ recommendations: recommended });
+  } catch (error) {
+    console.error("Error fetching recommendations:", error);
+    res.status(500).json({ error: "Failed to fetch recommendations" });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const product = await Product.findOne({
+      _id: req.params.id,
+      moderationStatus: { $ne: "Removed" },
+    }).populate("user", "name email profileImage branch whatsapp");
+
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
     res.json(product);
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -53,23 +103,27 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// @route   POST /api/product/upload
+// @route POST /api/product/upload
+// @desc  Upload and create new product
 router.post(
   "/upload",
   authMiddleware,
   upload.array("images", 5),
   async (req, res) => {
     try {
-      console.log("➡️ Upload route hit");
-
       const { title, description, category, condition, price, negotiable } =
         req.body;
-      console.log("📦 Body Data:", req.body);
-      console.log("🖼️ Files Uploaded:", req.files?.length || 0);
+      let { tags } = req.body;
 
-      // Field validation
       if (!title || !description || !category || !condition || !price) {
         return res.status(400).json({ error: "All fields are required" });
+      }
+
+      if (tags && typeof tags === "string") {
+        tags = tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean);
       }
 
       if (!req.files || req.files.length === 0) {
@@ -90,8 +144,6 @@ router.post(
         const result = await cloudinary.uploader.upload(dataUri, {
           folder: "buyandsell_products",
         });
-
-        console.log("✅ Image uploaded:", result.secure_url);
         uploadedImages.push(result.secure_url);
       }
 
@@ -102,95 +154,43 @@ router.post(
         condition,
         price,
         negotiable: negotiable === "true" || negotiable === "on",
+        tags: Array.isArray(tags) ? tags : [],
         images: uploadedImages,
         user: req.user._id,
+        moderationStatus: "Approved",
       });
 
       await newProduct.save();
-      console.log("📦 Product saved to DB");
-
-      // No need to emit here as the client will emit the socket event
 
       res.status(201).json({
         message: "Product uploaded successfully",
         product: newProduct,
       });
     } catch (error) {
-      console.error("❌ Upload error:", error);
+      console.error("Upload error:", error);
       res.status(500).json({ error: "Product upload failed." });
     }
   }
 );
 
-// @route   GET /api/product/user
-router.get("/user", authMiddleware, async (req, res) => {
-  try {
-    console.log("GET /api/product/user hit");
-    console.log("User ID from auth:", req.user ? req.user._id : 'No user');
-    
-    if (!req.user) {
-      return res.status(401).json({ error: "User not authenticated" });
-    }
-    
-    const products = await Product.find({ user: req.user._id }).sort({ createdAt: -1 });
-    console.log("Found user products:", products.length);
-    
-    res.json(products);
-  } catch (err) {
-    console.error("Failed to fetch user products:", err.message);
-    res.status(500).json({ error: "Failed to fetch user products" });
-  }
-});
-
-// @route   GET /api/product/:id
-router.get("/:id", async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id)
-      .populate('user', 'name email profileImage branch');
-    
-    if (!product) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-    
-    res.json(product);
-  } catch (error) {
-    console.error("Error fetching product:", error);
-    res.status(500).json({ error: "Failed to fetch product" });
-  }
-});
-
-// @route   DELETE /api/product/:id
+// @route DELETE /api/product/:id
+// @desc  Delete a user's own product
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    console.log("\n=== DELETE PRODUCT REQUEST ===\n");
-    console.log("DELETE route hit for product ID:", req.params.id);
-    console.log("User ID from auth:", req.user ? req.user._id : 'No user');
-    console.log("Auth header:", req.headers.authorization ? 'Present' : 'Missing');
-    
-    // Validate MongoDB ObjectId format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      console.error("Invalid product ID format:", req.params.id);
       return res.status(400).json({ error: "Invalid product ID format" });
     }
-    
+
     const product = await Product.findById(req.params.id);
-    console.log("Product found:", product ? "Yes" : "No");
-    
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
-    
-    console.log("Product user ID:", product.user.toString());
-    console.log("Current user ID:", req.user._id.toString());
-    
-    // Check if the user is the owner of the product
+
     if (product.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: "Not authorized to delete this product" });
     }
-    
+
     await product.deleteOne();
-    console.log("Product deleted successfully:", req.params.id);
-    
     res.json({ message: "Product deleted successfully" });
   } catch (err) {
     console.error("Failed to delete product:", err.message);

@@ -11,6 +11,9 @@ import { Provider } from 'react-redux';
 import UserProfile from './page/UserProfile.jsx';
 import ListProductForm from './page/ListProductForm.jsx';
 import Feedback from './page/Feedback.jsx';
+import ProductDetails from './page/ProductDetails.jsx';
+import Favorites from './page/Favorites.jsx';
+import SellerProfile from './page/SellerProfile.jsx';
 import Footer from './Component/Footer.jsx';
 import ProtectedRoute from './utils/ProtectedRoute.jsx';
 import Notification from './Component/Notification.jsx';
@@ -19,6 +22,9 @@ import Chatpage from './page/Chatpage.jsx';
 import History from './page/History.jsx';
 import 'react-toastify/dist/ReactToastify.css';
 import ForgotPassword from './page/ForgotPassword.jsx';
+import LostFound from './page/LostFound.jsx';
+import AdminModeration from './page/AdminModeration.jsx';
+import AdminRoute from './utils/AdminRoute.jsx';
 
 function App() {
   return (
@@ -74,6 +80,22 @@ const appRouter = createBrowserRouter([
         ),
       },
       {
+        path: 'lost-found',
+        element: (
+          <ProtectedRoute>
+            <LostFound />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin',
+        element: (
+          <AdminRoute>
+            <AdminModeration />
+          </AdminRoute>
+        ),
+      },
+      {
         path: 'chat',
         element: (
           <ProtectedRoute>
@@ -90,12 +112,28 @@ const appRouter = createBrowserRouter([
         ),
       },
       {
+        path: 'favorites',
+        element: (
+          <ProtectedRoute>
+            <Favorites />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: 'home',
         element: (
           <ProtectedRoute>
             <Home />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'seller/:sellerId',
+        element: <SellerProfile />,
+      },
+      {
+        path: 'product/:productId',
+        element: <ProductDetails />,
       },
       {
         path: 'sell',

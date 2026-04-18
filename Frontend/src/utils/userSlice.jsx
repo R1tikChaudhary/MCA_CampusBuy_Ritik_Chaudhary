@@ -1,5 +1,9 @@
 import { createSlice } from "@reduxjs/toolkit"
 
+const storedToken = localStorage.getItem('token')
+const storedRefreshToken = localStorage.getItem('refreshToken')
+const storedUser = localStorage.getItem('user')
+
 const userSlice = createSlice({
     name: "user",
     initialState: {
@@ -7,10 +11,11 @@ const userSlice = createSlice({
         showpassword: false,
         
         // Authentication State
-        isAuthenticated: !!localStorage.getItem('token'),
-        token: localStorage.getItem('token') || null,
-        user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
-        profile: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : {},
+        isAuthenticated: !!(storedToken || storedRefreshToken),
+        token: storedToken || null,
+        refreshToken: storedRefreshToken || null,
+        user: storedUser ? JSON.parse(storedUser) : null,
+        profile: storedUser ? JSON.parse(storedUser) : {},
         
         // Form Data
         loginForm: {
@@ -51,18 +56,30 @@ const userSlice = createSlice({
                 localStorage.removeItem('token')
             }
         },
+        setRefreshToken: (state, action) => {
+            state.refreshToken = action.payload
+            if (action.payload) {
+                localStorage.setItem('refreshToken', action.payload)
+            } else {
+                localStorage.removeItem('refreshToken')
+            }
+        },
         setUser: (state, action) => {
             state.user = action.payload
             if (action.payload) {
                 localStorage.setItem('user', JSON.stringify(action.payload))
+            } else {
+                localStorage.removeItem('user')
             }
         },
         logout: (state) => {
             state.isAuthenticated = false
             state.token = null
+            state.refreshToken = null
             state.user = null
             state.profile = {}
             localStorage.removeItem('token')
+            localStorage.removeItem('refreshToken')
             localStorage.removeItem('user')
         },
         
@@ -124,6 +141,7 @@ export const {
     SetShowPassword,
     setAuthenticated,
     setToken,
+    setRefreshToken,
     setUser,
     logout,
     updateLoginForm,

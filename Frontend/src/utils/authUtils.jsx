@@ -1,23 +1,124 @@
 import { useSelector } from 'react-redux';
 
-// Function to get the latest auth token
-export const getAuthToken = () => {
-    // First try to get token from localStorage
-    const token = localStorage.getItem('token');
-    
-    // Check if token is valid format
-    if (token && typeof token === 'string' && token.length > 20) {
-        return token;
-    } else {
+export const API_BASE_URL = 'http://localhost:5000/api';
+
+const ACCESS_TOKEN_KEY = 'token';
+const REFRESH_TOKEN_KEY = 'refreshToken';
+const USER_KEY = 'user';
+
+const parseJwt = (token) => {
+    try {
+        const payload = token.split('.')[1];
+        return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    } catch (error) {
         return null;
     }
 };
 
+export const isTokenExpired = (token) => {
+    if (!token) return true;
+
+    const decoded = parseJwt(token);
+    if (!decoded?.exp) return true;
+
+    return decoded.exp * 1000 <= Date.now() + 15000;
+};
+
+export const clearStoredAuth = () => {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+};
+
+export const storeAuthSession = ({ token, refreshToken, user }) => {
+    if (token) {
+        localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    }
+
+    if (refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    }
+
+    if (user) {
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+    }
+};
+
+export const getRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_KEY);
+
+let refreshRequest = null;
+
+export const refreshAccessToken = async () => {
+    if (!refreshRequest) {
+        refreshRequest = (async () => {
+            const refreshToken = getRefreshToken();
+
+            if (!refreshToken) {
+                clearStoredAuth();
+                return null;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ refreshToken }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data?.token) {
+                    // Clear auth only when the refresh token is definitely invalid/expired.
+                    if (response.status === 401 || response.status === 403) {
+                        clearStoredAuth();
+                    }
+                    return null;
+                }
+
+                storeAuthSession(data);
+                return data;
+            } catch (error) {
+                // Transient network/server issue: keep existing session data and retry later.
+                return null;
+            } finally {
+                refreshRequest = null;
+            }
+        })();
+    }
+
+    return refreshRequest;
+};
+
+export const getValidAccessToken = async () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+    if (token && !isTokenExpired(token)) {
+        return token;
+    }
+
+    const refreshedSession = await refreshAccessToken();
+    return refreshedSession?.token || null;
+};
+
+// Function to get the latest auth token
+export const getAuthToken = () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+    if (token && typeof token === 'string' && token.length > 20 && !isTokenExpired(token)) {
+        return token;
+    }
+
+    return null;
+};
+
 // Selectors for easy access to Redux state
 export const useAuth = () => {
-    const { isAuthenticated, token: reduxToken, user } = useSelector(store => store.user);
-    const token = reduxToken || localStorage.getItem('token');
-    return { isAuthenticated, token, user, getAuthToken };
+    const { isAuthenticated, token: reduxToken, refreshToken: reduxRefreshToken, user } = useSelector(store => store.user);
+    const token = reduxToken || localStorage.getItem(ACCESS_TOKEN_KEY);
+    const refreshToken = reduxRefreshToken || localStorage.getItem(REFRESH_TOKEN_KEY);
+    return { isAuthenticated: isAuthenticated || !!refreshToken, token, refreshToken, user, getAuthToken };
 };
 
 export const useUserProfile = () => {
@@ -42,38 +143,18 @@ export const useProductState = () => {
 
 // Authentication helpers
 export const isAuthenticated = () => {
-    const token = localStorage.getItem('token');
-    return !!token;
-};
-
-// Enhanced auth check that also validates token
-export const validateAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return false;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/auth/validate`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        return response.ok;
-    } catch (error) {
-        console.error('Auth validation failed:', error);
-        return false;
-    }
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    return !!(token || refreshToken);
 };
 
 export const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
     return {
         'Content-Type': 'application/json',
         ...(token && { 'Authorization': `Bearer ${token}` })
     };
 };
-
-// API helpers
-export const API_BASE_URL = 'http://localhost:5000/api';
 
 // Test API connectivity
 export const testAPI = async () => {
@@ -89,12 +170,13 @@ export const testAPI = async () => {
 
 export const apiRequest = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
-    const headers = getAuthHeaders();
-    
+    const token = await getValidAccessToken();
+
     const config = {
         ...options,
         headers: {
-            ...headers,
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
             ...options.headers
         }
     };
@@ -102,11 +184,11 @@ export const apiRequest = async (endpoint, options = {}) => {
     try {
         const response = await fetch(url, config);
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.message || 'Request failed');
         }
-        
+
         return data;
     } catch (error) {
         console.error('API Request failed:', error);

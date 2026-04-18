@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { isAdminUser } = require("../utils/adminUtils");
 
 const authMiddleware = async (req, res, next) => {
   console.log('\n=== AUTH MIDDLEWARE ===\n');
@@ -33,6 +34,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     // Attach user to request
+    user.isAdmin = isAdminUser(user);
     req.user = user;
     console.log('Authentication successful for user:', user.name || user.email);
     next();
